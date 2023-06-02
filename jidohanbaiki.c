@@ -3,10 +3,8 @@
 #include <stdlib.h>
 #include <time.h>
 
-
 #define CHARGE_MAX 1990
 #define KANRI_NUM 111
-#define UNPURCHASEABLE 201
 
 struct product {
     int no;
@@ -39,7 +37,6 @@ void showManagerMenu();
 struct transaction createTransaction(char *code, const char *name, int price, int sold_quan);
 void updateProduct(struct product *productList, int quan, int no);
 void updateProductInventory(struct product *productList, int quan, int no);
-void showTitle();
 void showOneProduct(struct product pr);
 void showAllProduct(struct product *pr, int quan );
 int canBuy(struct product *pr, int choice, int charge);
@@ -57,6 +54,7 @@ void writeTransactionOut(struct transaction *transactionList, int quan);
 void readChangeFromFile(struct change *changeList, int *quan);
 void writeChangeOut(struct change *changeList, int quan);
 void showErrorMessage(int *errorCode);
+void clearScreen();
 
 int main(){
     struct product productList[31];
@@ -84,8 +82,6 @@ int main(){
     int Sumprofit = 0;//総売上高 
 
     //error 処理
-    int chargeError = 0;
-    int purchaseError = 0;
     int errorCode = 0;
 
     char inputPassword[128];
@@ -111,9 +107,8 @@ int main(){
     Sumprofit = loadProfitAmount(transactionList, transaction_quantity);
 
     do
-    {
+    {   clearScreen();
         printf("\n           *********************** 自動販売機 ***********************   \n\n");
-        // allProductDisplay(productList, product_quantity);
         purchaseableAllProductDisplay(productList, product_quantity, sumGiven);
         printf("\n");
 
@@ -126,9 +121,7 @@ int main(){
             purchase_status--;
         }
 
-
         printf("\n-------------------------------------------------------------\n");
-        // printf("\t\t\t\t 投入金額： %d 円\n\n", sumGiven);
         printf("\t\t\t 投入金額： %d 円\n", sumGiven);
         printf("\t1.金銭投入\n");
         printf("\t2.商品選択\n");
@@ -140,7 +133,8 @@ int main(){
         printf("\nお客さんはこれから何を選びますか？ ");
         
         scanf("%d", &choice);
-
+        getchar();
+        clearScreen();
 
         switch (choice)
         {
@@ -158,11 +152,13 @@ int main(){
                 printf("\nお金を投入してください：");
                 fflush(stdin);
                 if((scanf("%d", &charge))==1) {
+                    clearScreen();
 
                     if((charge <= CHARGE_MAX) && ((charge %10) == 0) && ((charge == 10)||(charge == 50)||(charge == 100)||(charge == 500)||(charge == 1000))){
                         
                         sumGiven += charge;
                         if(sumGiven > 1990) {
+                            errorCode = 102;
                             sumGiven -= charge;
                             charge = 0;
                             break;
@@ -172,19 +168,18 @@ int main(){
                         writeChangeOut(changeList, change_quantity);
                         changeBack = sumGiven;
                         charge = 0;
-                        // system("cls");
                         break;
                     }
                     else{
                         // error shori
                         errorCode = 101;
                         charge = 0;
-                        // chargeError = 1;
                         continue;
                     }
                 }
                 else {
                     scanf("%c", &split);
+                    clearScreen();
                     if(split == '@') {
                         break;
                     }
@@ -193,32 +188,28 @@ int main(){
                         continue;
                     }
                 }
-                printf("\n\n終了の場合は「＠」を入力してください。\n");
             }
-            // system("cls");
             break;
         case 2://商品選択
             while(1) {
+                clearScreen();
                 printf("\n           *********************** 自動販売機 ***********************   \n\n");
                 purchaseableAllProductDisplay(productList, product_quantity, sumGiven);
-                if(errorCode != 0) {
-                    showErrorMessage(&errorCode);
-                }
+                if(errorCode != 0) showErrorMessage(&errorCode);
                 printf("\n\n              ********** 商品選択 **********             \n\n");
                 printf("\t\t\t 投入金額： %d 円\n\n", sumGiven);
-            
                 printf("\n\n終了の場合は「＠」を入力してください。\n\n");
-
                 printf("購入商品の商品番号を入力してください(1 -> 6)：\n");
                 
                 if((scanf("%d", &product_choice)) == 1) {
+                    getchar();
                     //購入可能？
+                    clearScreen();
                     purchasable = canBuy(productList, product_choice, sumGiven);
                     //購入成功
                     if((product_choice > 0) && (product_choice <= 6) && purchasable){
                         --product_choice;
                         sumGiven = changeBack -= productList[product_choice].price;
-                        // printf("product %d 's price is %d\n", product_choice, productList[product_choice-1].price);
                         productList[product_choice].inventory--;
                         purchase_status++;
                         // 売上計算を行う。
@@ -234,7 +225,7 @@ int main(){
                     }
                     else{
                         if(sumGiven < productList[product_choice-1].price) {
-                            errorCode = UNPURCHASEABLE;
+                            errorCode = 201;
                         } else {
                             errorCode = 202;
                         }
@@ -244,6 +235,8 @@ int main(){
                 //前の画面に戻る
                 else {
                     scanf("%c", &split);
+                    getchar();
+                    clearScreen();
                     if(split == '@') {
                         break;
                     }
@@ -253,19 +246,24 @@ int main(){
                     }
                 }
                 break;
-
             }
-            // system("cls");
             break;
 
         case 3://購入完了で、釣銭を返却
             sumGiven = 0;
-            //お釣りを返す（投入金の残高を硬貨ごとに計算する）、機内の硬貨を減らす。
-            decreaseChange(changeList, change_quantity, changeBack);
-            //金銭や商品の状態を外部ファイルに保存
-            writeProductOut(productList, product_quantity);
-            writeChangeOut(changeList, change_quantity);
-            break;
+            if(changeBack == 0){
+                errorCode = 301;
+                writeProductOut(productList, product_quantity);
+                writeChangeOut(changeList, change_quantity);
+                break;
+            } else {
+                //お釣りを返す（投入金の残高を硬貨ごとに計算する）、機内の硬貨を減らす。
+                decreaseChange(changeList, change_quantity, changeBack);
+                //金銭や商品の状態を外部ファイルに保存
+                writeProductOut(productList, product_quantity);
+                writeChangeOut(changeList, change_quantity);
+                break;
+            }
         
         case 4://終了
             writeProductOut(productList, product_quantity);
@@ -275,11 +273,11 @@ int main(){
 
         case KANRI_NUM: //管理者用の画面に移し 
             //パスワードで認証する機能        
-            do
-            {
-                printf("管理者のパスワードを入力してください。\n");
+            do {
+                printf("\n管理者のパスワードを入力してください。\n");
                 fflush(stdin);
                 gets(inputPassword);
+                clearScreen();
                 certificationStatus = strcmp(inputPassword, PASSWORD);
                 if(certificationStatus == 0){
                     printf("認証できました。\n");
@@ -288,42 +286,54 @@ int main(){
                         int productNo;
                         char date[15];
                         char back;
-
                         printf("\n    ***************管理者画面***************   \n");
-                        //showAllProduct(productList, product_quantity);
-                        //printf("\n");
-                        //printf("\n---------------------------------------------------\n");
                         showManagerMenu();
 
                         scanf("%d", &manager_choice);
+                        getchar();
+                        clearScreen();
                         struct product product;
 
                         switch (manager_choice)
                         {
                         case 1: //商品一覧表 --OK
-                            printf("\n---------------------------------------------------\n");
+                            printf("\n============== 商品一覧表 ==================\n\n");
+
                             showAllProduct(productList, product_quantity);
-                            printf("\n---------------------------------------------------\n");
-                            printf("戻りますか (Y/N) : ");
+                            printf("戻りますか (Y) : ");
                             while(1) {
                                 fflush(stdin);
                                 back = getchar();
+                                clearScreen();
                                 if((back == 'Y') || (back == 'y')) {
                                     break;
                                 }
                             }
-                            
                             break;
                         case 2://商品修正  -- OK
                         //全商品を表示する
-                            printf("\n---------------------------------------------------\n");
+                            clearScreen();
+                            printf("\n============== 商品修正==================\n\n");
                             showAllProduct(productList, product_quantity);
-                            printf("\n---------------------------------------------------\n");
-                            
-                            printf("変更商品の番号を入力してください：");
-                            scanf("%d", &productNo);
-                            updateProduct(productList, product_quantity, productNo);
-                            writeProductOut(productList, product_quantity);
+                            printf("\n\n戻りの場合は「＠」を入力してください。\n\n");
+                            printf("\n変更商品の番号を入力してください：");
+                            if((scanf("%d", &productNo))== 1){
+                                getchar();
+                                updateProduct(productList, product_quantity, productNo);
+                                writeProductOut(productList, product_quantity);
+                            }
+                            else {
+                                scanf("%c", &split);
+                                getchar();
+                                clearScreen();
+                                if(split == '@') {
+                                    break;
+                                }
+                                else {
+                                    printf("\aもう一回入力してください。");
+                                    continue;
+                                }
+                            }
                             break;
 
                         case 3: // 商品追加 -- OK
@@ -333,24 +343,26 @@ int main(){
                             // break;
 
                         case 4://売上高確認
+                            printf("\n============== 売上高確認 ==================\n");
                             printf("\n");
                             printf("\n---------------------------------------------------\n");
                             // showAllProfit(transactionList, transaction_quantity);
                             printf("\n\t  売上高の総金額：  %-10d\n", Sumprofit);
                             printf("\n---------------------------------------------------\n");
-                            printf("戻りますか (Y/N) : ");
+                            printf("戻りますか (Y) : ");
                             while(1) {
                                 fflush(stdin);
                                 back = getchar();
+                                clearScreen();
                                 if((back == 'Y') || (back == 'y')) {
                                     break;
                                 }
                             }
-
                             break;
 
                         case 5://残高確認・回収
-                            printf("\n");
+                            printf("\n============== 残高確認・回収 ==================\n\n");
+                            clearScreen();
                             struct change change;
                             // change = createChange();
                             // changeList[change_quantity++] = change;
@@ -359,7 +371,7 @@ int main(){
                             showAllChange(changeList, change_quantity);
                             printf("\n\t  準備金の総金額：  %-10d\n", Sumchange);
                             printf("\n---------------------------------------------------\n");
-                            printf("戻りますか (Y/N) : ");
+                            printf("戻りますか (Y) : ");
                             while(1) {
                                 fflush(stdin);
                                 back = getchar();
@@ -370,18 +382,34 @@ int main(){
                             break;
 
                         case 6://商品補充 -- OK
-                            
-                            printf("商品番号を入力してください：");
-                            scanf("%d", &productNo);
-                            updateProductInventory(productList, product_quantity, productNo);
-
+                            clearScreen();
+                            printf("\n================ 商品補充 ================\n\n");
+                            showAllProduct(productList, product_quantity);
+                            printf("\n\n戻りの場合は「＠」を入力してください。\n\n");
+                            printf("\n商品番号を入力してください：");
+                            if((scanf("%d", &productNo)) == 1){
+                                getchar();
+                                updateProductInventory(productList, product_quantity, productNo);
+                            } else {
+                                scanf("%c", &split);
+                                getchar();
+                                if(split == '@') {
+                                    break;
+                                }
+                                else {
+                                    printf("\aもう一回入力してください。");
+                                    continue;
+                                }
+                            }
                             break;
 
                         case 7://終了
+                            clearScreen();
                             writeProductOut(productList, product_quantity);
                             printf("プログラムを終了しました。");
                             break;
                         default:
+                        clearScreen();
                             printf("違います。もう一回入力してください。");
                             break;
                         }
@@ -403,12 +431,10 @@ int main(){
         default:
             // printf("違います。もう一回入力してください。\n");
             break;
-
         }
     } while (choice != 4);
+    return 0;
 }
-
-
 
 void showManagerMenu(){
     printf("1.商品一覧表\n");
@@ -421,7 +447,6 @@ void showManagerMenu(){
     printf("\n\n  **************************************   \n");
     printf("\nあなたはこれから何を選びますか？ ");
 }
-
 // struct product createProduct(){
 //     struct product product;
 //     printf("商品番号を入力してください：");
@@ -481,49 +506,46 @@ struct transaction createTransaction(char *code, const char *name, int price, in
     strftime(rec.date, sizeof(rec.date), "%d/%m/%Y", timeInfo);
     return rec;
 }
-
-// void deleteSameTransaction(struct transaction *transactionList, int quan, char *code, char *date){
-//     FILE *transactionFileOut = fopen("TransactionHistory.csv", "w");
-//     int i;
-//     for(i=0; i<quan; i++){
-//         struct transaction rec = transactionList[i];
-//         if(((strcmp(transactionList[i].product_r.code,code)) == 0) && ((strcmp(transactionList[i].date,date)) == 0)){
-//             for(int j =i; j < quan; j++){
-//                 transactionList[j] = transactionList[j + 1];
+// void writeTransactionOut(struct transaction *oneTransaction, char *code, char *date){
+//     FILE *transactionFileOut = fopen("TransactionHistory.csv", "r+");
+//     if(transactionFileOut != NULL){
+//         struct transaction transaction;
+//         long currentPos = ftell(transactionFileOut);
+//         while(fread(&transaction, sizeof(struct transaction), 1, transactionFileOut) == 1){
+//             if((strcmp(transaction.date,date) == 0) && (strcmp(transaction.product_r.code,code) == 0)){
+//                     fseek(transactionFileOut, currentPos, SEEK_SET);
+//                     fwrite(oneTransaction, sizeof(struct transaction), 1, transactionFileOut);
+//                     break;
 //             }
-//             quan--;
+//             currentPos = ftell(transactionFileOut);
 //         }
-//         fprintf(transactionFileOut, "%s,%s,%s,%d,%d,%d\n", rec.date,rec.product_r.code,
-//         rec.product_r.name,rec.product_r.price,rec.product_r.sold_quantity,rec.amount);
 //     }
 //     fclose(transactionFileOut);
 // }
-
 void updateProduct(struct product *productList, int quan, int no) {
     for(int i = 0; i < quan; i++) {
         if(productList[i].no == no) {
-            printf("商品番号を入力してください：");
-            scanf("%d", &productList[i].no);
-            printf("名簿コードを入力してください：");
+            printf("\n名簿コードを入力してください：");
             scanf("%s", productList[i].code);
-            printf("商品名を入力してください：");
+            getchar();
+            printf("\n商品名を入力してください：");
             scanf("%s", productList[i].name);
-            printf("単価を入力してください：");
+            getchar();
+            printf("\n単価を入力してください：");
             scanf("%d", &productList[i].price);
+            fflush(stdin);
         }
     }
 }
-
 void updateProductInventory(struct product *productList, int quan, int no) {
     for(int i = 0; i < quan; i++) {
         if(productList[i].no == no) {
-            printf("商品の数を入力してください：");
+            printf("\n商品の数を入力してください： ");
             scanf("%d", &productList[i].inventory);
-            
+            getchar();
         }
     }
 }
-
 // void deleteProduct(struct product *productList, int quan, int no){
 //     for(int i = 0; i < quan; i++){
 //         if(productList[i].no == no){
@@ -535,23 +557,18 @@ void updateProductInventory(struct product *productList, int quan, int no) {
 //         }
 //     }
 // }
-
-void showTitle(){
-    printf("%-5s %-7s \t%-10s \t%-7s    %-5s\n", "番号","名簿コード", "商品名", "値段", "残り");
-}
-
 void showOneProduct(struct product pr){
-    printf("%-5d %-15s %-15s %-10d %-5d\n", pr.no,pr.code, pr.name, pr.price, pr.inventory);
+    printf(" %-4d %-6s  %-15s %-7d %-5d\n", pr.no,pr.code, pr.name, pr.price, pr.inventory);
 }
 void showAllProduct(struct product *pr, int quan ){
-    showTitle();
+    printf("%s  %s  %s      %s    %s\n", "番号","コード", "商品名", "値段", "残り");
     printf("---------------------------------------------------\n");
     int i;
     for(i=0; i<quan; i++) {
         showOneProduct(pr[i]);
     }
+    printf("---------------------------------------------------\n");
 }
-
 int canBuy(struct product *pr, int choice, int charge){
     choice--;
     if((pr[choice].inventory > 0) && (charge >= pr[choice].price)) {
@@ -562,17 +579,6 @@ int canBuy(struct product *pr, int choice, int charge){
         return 0;
     }
 }
-
-// void purchaseErrorMessage_out_of_stock(){
-//     printf("\n\x1b[31m 在庫がない為、購入できませんでした。\x1b[0m\n\n");
-// }
-// void purchaseErrorMessage_not_enough_money(){
-//     printf("\n\x1b[31m 購入できませんでした。\x1b[0m\n\n");
-// }
-// void chargeErrorMessage(){
-//     printf("\n\x1b[31m 該当な金銭を投入してください。\x1b[0m\n\n");
-// }
-
 void purchaseableAllProductDisplay(struct product *pr, int quan, int charge){
     int i;
     printf("  --------------------------------------------------------------------------------\n");
@@ -611,14 +617,12 @@ void purchaseableAllProductDisplay(struct product *pr, int quan, int charge){
         }
     }
     printf("\n  --------------------------------------------------------------------------------\n");
-
 }
 void showOneChange(struct change ch){
-    printf("%-5d %-10d %-10d %-10d\n", ch.no, ch.kingaku, ch.quan, ch.amount);
+    printf("%-10d %-10d %-10d\n", ch.kingaku, ch.quan, ch.amount);
 }
-
 void showAllChange(struct change *ch, int quan){
-    printf("%s  %s     %s\t    %s\n", "番号", " 金額", "枚数", "集計");
+    printf("%s     %s\t    %s\n", " 金額", "枚数", "集計");
     printf("---------------------------------\n");
     int i;
     for(i=0; i<quan; i++) {
@@ -653,9 +657,6 @@ void decreaseChange(struct change *changeList, int quan, int backChange){
     printf("お客様に %d 円を返します。\nそな中に：\n", backChange);
     for(int i = quan -1; i >= 0; i--) {
         numNote = backChange / changeList[i].kingaku;
-        // printf("%d回 back change %d\n", i, backChange);
-        // printf("%d回 kingaku %d\n", i, changeList[i].kingaku);
-        // printf("%d回 maisu %d \n\n", i, numNote);
         if(numNote > 0) {
             if(changeList[i].quan >= numNote){
                 changeList[i].quan -= numNote;
@@ -667,13 +668,12 @@ void decreaseChange(struct change *changeList, int quan, int backChange){
             backChange -= numNote * changeList[i].kingaku;
         }
     }
+    //画面を止まわせる
     for(int j = 0; j < 10000; j++){
-        //画面を止まわせる
-        for(int k = 0; k < 1000000/2; k++){}
+        for(int k = 0; k < 1000000/3; k++){}
     }
     printf("ありがとうございました。\n");
 }
-
 int loadAmount(struct change *ch, int quan){
     int i, sum = 0;
     for(i=0; i<quan; i++) {
@@ -697,7 +697,6 @@ void readProductFromFile(struct product *productList, int *quan){
     fclose(productFile);
     *quan = i;
 }
-
 void writeProductOut(struct product *productList, int quan) {
     FILE *productFileOut = fopen("shohin.csv", "w");
     int i;
@@ -717,7 +716,6 @@ void writeTransactionOut(struct transaction *transactionList, int quan) {
     }
     fclose(transactionFileOut);
 }
-
 void readTransactionFromFile(struct transaction *transactionList, int *quan){
     FILE *transactionFile = fopen("TransactionHistory.csv", "r");
     int i =0;
@@ -731,7 +729,7 @@ void readTransactionFromFile(struct transaction *transactionList, int *quan){
 void readChangeFromFile(struct change *changeList, int *quan) {
     FILE *changeFile = fopen("change.csv", "r");
     int i;
-    while (fscanf(changeFile, "%d,%d,%d,%d\n", &changeList[i].no, &changeList[i].kingaku , &changeList[i].quan, &changeList[i].amount) == 4) {
+    while (fscanf(changeFile, "%d,%d,%d\n", &changeList[i].kingaku , &changeList[i].quan, &changeList[i].amount) == 4) {
         i++;
     }
     fclose(changeFile);
@@ -742,29 +740,43 @@ void writeChangeOut(struct change *changeList, int quan) {
     int i;
     for(i=0; i<quan; i++){
         struct change ch = changeList[i];
-        fprintf(changeFileOut, "%d,%d,%d,%d\n", ch.no, ch.kingaku , ch.quan, ch.kingaku*ch.quan);
+        fprintf(changeFileOut, "%d,%d,%d\n", ch.kingaku , ch.quan, ch.kingaku*ch.quan);
     }
     fclose(changeFileOut);
+}
+void clearScreen() {
+    printf("\033[2J");
+    printf("\033[H");
+    fflush(stdout);
 }
 void showErrorMessage(int *errorCode){
     switch (*errorCode)
     {
     case 0:
-        printf("");printf("\n\x1b[31m 購入できませんでした。\x1b[0m\n\n");
-        break;
-    case UNPURCHASEABLE:
-        printf("\n\x1b[31m お金が足りないので、購入できませんでした。\x1b[0m\n\n");
-        *errorCode = 0;
+        printf("");
         break;
     case 101:
         printf("\n\x1b[31m 該当な金銭を投入してください。\x1b[0m\n\n");
+        *errorCode = 0;
+        break;
+    case 102:
+        printf("\n\x1b[31m 申し訳ございません。投入上限は1990円ですです。\x1b[0m\n\n");
+        *errorCode = 0;
+        break;
+    case 201:
+        printf("\n\x1b[31m お金が足りないので、購入できませんでした。\x1b[0m\n\n");
         *errorCode = 0;
         break;
     case 202:
         printf("\n\x1b[31m 在庫がない為、購入できませんでした。\x1b[0m\n\n");
         *errorCode = 0;
         break;
+    case 301:
+        printf("\n\x1b[31m お釣りはありません。\x1b[0m\n\n");
+        *errorCode = 0;
+        break;
     default:
         break;
     }
 }
+
