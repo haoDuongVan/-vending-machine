@@ -14,7 +14,7 @@
 struct product {
     int no;
     char code[5];
-    char name[15];
+    char name[100];
     int price;
     int inventory;
     int sold_quantity;
@@ -22,7 +22,7 @@ struct product {
 };
 struct transaction {
     // int transactionNo;
-    char date[15];
+    char date[50];
     struct product product_r;//code, name, price, sold_quan
     int amount; // 属性：6
 };
@@ -56,30 +56,27 @@ int loadProfitAmount(struct transaction *rec, int quan);
 void readProductFromFile(struct product *productList, int *quan);
 void writeProductOut(struct product *productList, int quan);
 void readTransactionFromFile(struct transaction *transactionList, int *quan);
-// void writeTransactionOut(struct transaction new_transaction);
+void writeTransactionOut(struct transaction *transactionList, int quan, char *date , char *code);
 void readChangeFromFile(struct change *changeList, int *quan);
 void writeChangeOut(struct change *changeList, int quan);
 void showErrorMessage(int *errorCode, int product_choice);
 void clearScreen();
 void printCentered(char *text, char *color);
 void printNumberCentered(int num, char *color);
-int isResetTime(struct tm *lastResetTime);
-void resetSoldForNewDay(struct transaction *transactionList, int quan, struct tm *lastResetTime);
-void showAllProfit(struct transaction *rec, int quan, char *date);
-void showOneProfit(struct transaction rec);
-// void removeDuplicateLine(char *productCode, char* date);
-void overwriteLine(const char* date, const char* productName, struct transaction new_t);
+
 int main(){
-    struct product productList[6];
+    struct product productList[31];
     int product_quantity = 0;
     int choice, manager_choice;
     
     //利用者画面の変数
+    int money = 0;//投入した金額
     int charge = 0;//チャージする金額
     int sumGiven = 0;
     char split;//割り込み処理（＠の場合はプログラムを終了する。）
     int changeBack = 0; //返すお釣りの金額
     int product_choice;
+    int purchase_status;
 
     //釣り金を返すため、釣り金を設定する。
     struct change changeList[6];
@@ -89,6 +86,7 @@ int main(){
     //レシートと売上確認
     struct transaction transactionList[1000];
     int transaction_quantity = 0;
+    int transaction_ID = 1;
     int Sumprofit = 0;//総売上高 
 
     //error 処理
@@ -108,22 +106,16 @@ int main(){
     time(&rawTime);
     timeInfo = localtime(&rawTime);
     strftime(nowDate, sizeof(nowDate), "%d/%m/%Y", timeInfo);
-    struct tm *lastResetTime;
-    time_t currentTime;
-    time(&currentTime);
-    lastResetTime = localtime(&currentTime);
 
     //外部ファイから商品を読み込む
     readProductFromFile(productList, &product_quantity);
     readChangeFromFile(changeList, &change_quantity);
     readTransactionFromFile(transactionList, &transaction_quantity);
-    resetSoldForNewDay(transactionList, transaction_quantity, lastResetTime);
     Sumchange = loadAmount(changeList, change_quantity);
     Sumprofit = loadProfitAmount(transactionList, transaction_quantity);
 
     do
-    { 
-        showScreen(productList, product_quantity, sumGiven, &errorCode, product_choice);
+    {   showScreen(productList, product_quantity, sumGiven, &errorCode, product_choice);
         printf("\t\t\t 投入金額： %d 円\n\n", sumGiven);
         showUserMenu();
         printf("\nお客さんはこれから何を選びますか？ ");
@@ -200,16 +192,14 @@ int main(){
                         productList[product_choice].inventory--;
                         errorCode = PURCHASE_SUCCESS_CODE;
                         // 売上計算を行う。
-                        struct transaction new_transaction;
+                        struct transaction transaction;
                         productList[product_choice].sold_quantity++;
-                        new_transaction = createTransaction(productList[product_choice].code, productList[product_choice].name,productList[product_choice].price, productList[product_choice].sold_quantity);
-                        // writeTransactionOut(new_transaction);
-                        // removeDuplicateLine(, );
-                        overwriteLine(new_transaction.date, new_transaction.product_r.code, new_transaction);
+                        transaction = createTransaction(productList[product_choice].code, productList[product_choice].name,productList[product_choice].price, productList[product_choice].sold_quantity);
+                        transactionList[transaction_quantity++] = transaction;
+                        writeTransactionOut(transactionList, transaction_quantity, nowDate, productList[product_choice].code);
+                        // deleteSameTransaction(transactionList, transaction_quantity, productList[product_choice].code, nowDate);
                         ++product_choice;
-                        //購入完了するたびに、商品や金銭を保存する
-                        writeProductOut(productList, product_quantity);
-                        writeChangeOut(changeList, change_quantity);
+
                         break;
                     }
                     else{
@@ -265,10 +255,10 @@ int main(){
         case KANRI_NUM: //管理者用の画面に移し 
             //パスワードで認証する機能        
             do {
-                clearScreen();
                 printf("\n管理者のパスワードを入力してください。\n");
                 fflush(stdin);
                 gets(inputPassword);
+                clearScreen();
                 certificationStatus = strcmp(inputPassword, PASSWORD);
                 if(certificationStatus == 0){
                     printf("認証できました。\n");
@@ -277,13 +267,13 @@ int main(){
                         int productNo;
                         // char date[15];
                         char back;
-                        printf("\n    ***************管理者画面***************   \n\n");
+                        printf("\n    ***************管理者画面***************   \n");
                         showManagerMenu();
 
                         scanf("%d", &manager_choice);
                         getchar();
                         clearScreen();
-                        // struct product product;
+                        struct product product;
 
                         switch (manager_choice)
                         {
@@ -302,7 +292,7 @@ int main(){
                             }
                             break;
                         case 2://商品修正  -- OK
-                            //全商品を表示する
+                        //全商品を表示する
                             clearScreen();
                             printf("\n============== 商品修正==================\n\n");
                             showAllProduct(productList, product_quantity);
@@ -337,7 +327,7 @@ int main(){
                             printf("\n============== 売上高確認 ==================\n");
                             printf("\n");
                             printf("\n---------------------------------------------------\n");
-                            showAllProfit(transactionList, transaction_quantity, nowDate);
+                            // showAllProfit(transactionList, transaction_quantity);
                             printf("\n\t  売上高の総金額：  %-10d\n", Sumprofit);
                             printf("\n---------------------------------------------------\n");
                             printf("戻りますか (Y) : ");
@@ -362,16 +352,13 @@ int main(){
                             showAllChange(changeList, change_quantity);
                             printf("\n\t  準備金の総金額：  %-10d\n", Sumchange);
                             printf("\n---------------------------------------------------\n");
-                            printf("金銭回収をしますか（Y/N） : ");
+                            printf("戻りますか (Y) : ");
                             while(1) {
                                 fflush(stdin);
                                 back = getchar();
-                                if((back != 'Y') || (back != 'y')) {
+                                if((back == 'Y') || (back == 'y')) {
                                     break;
-                                } else {
-                                    //　管理者が全ての紙幣を引き出す。硬貨ごと
                                 }
-
                             }
                             break;
 
@@ -461,6 +448,50 @@ void showScreen(struct product *pr, int quan, int Sumcharge, int *errorCode, int
     }
     printf("\n          -------------------------------------------------------------\n");
 }
+// struct product createProduct(){
+//     struct product product;
+//     printf("商品番号を入力してください：");
+//     scanf("%d", &product.no);
+//     printf("名簿コードを入力してください：");
+//     scanf("%s", product.code);
+//     printf("商品名を入力してください：");
+//     scanf("%s", product.name);
+//     printf("単価を入力してください：");
+//     scanf("%d", &product.price);
+//     printf("商品の数を入力してください：");
+//     scanf("%d", &product.inventory);
+//     return product;
+// }
+// struct change createChange(){
+//     struct change change;
+//     printf("Noを入力してください：");
+//     scanf("%d", &change.no);
+//     printf("金銭の金額を入力してください：");
+//     scanf("%d", &change.kingaku);
+//     printf("枚数を入力してください：");
+//     scanf("%d", &change.quan);
+//     // change.amount = change.kingaku * change.quan;
+//     return change;
+// }
+// struct Transaction createTransaction() {
+//     struct Transaction Transaction;
+//     // struct product product;
+//     printf("レシート番号を入力してください：");
+//     scanf("%d", &Transaction.TransactionNo);
+//     printf("日付を入力してください：");
+//     scanf("%s", &Transaction.date);
+//     printf("名簿コードを入力してください：");
+//     scanf("%s", &Transaction.product_r.code);
+//     printf("商品名を入力してください：");
+//     scanf("%s", &Transaction.product_r.name);
+//     printf("販売数量を入力してください：");
+//     scanf("%d", &Transaction.product_r.sold_quantity);
+//     printf("商品単価を入力してください：");
+//     scanf("%d", &Transaction.product_r.price);
+//     printf("売上高を入力してください：");
+//     scanf("%d", &Transaction.amount);
+//     return Transaction;
+// }
 struct transaction createTransaction(char *code, const char *name, int price, int sold_quan){
     struct transaction rec;
     strcpy(rec.product_r.code, code);
@@ -488,10 +519,6 @@ void updateProduct(struct product *productList, int quan, int no) {
             printf("\n単価を入力してください：");
             scanf("%d", &productList[i].price);
             fflush(stdin);
-            if(scanf("%s", productList[i].code) != 1 || scanf("%s", productList[i].name) != 1 || scanf("%d", &productList[i].price) != 1) {
-                printf("入力したデータが正しくないため、う一度入力してください。\n");
-                break;
-            }
         }
     }
 }
@@ -596,22 +623,20 @@ void showAllChange(struct change *ch, int quan){
     }
     printf("---------------------------------\n");
 }
-void showOneProfit(struct transaction rec){
-    printf("%-15s %-10s %-15s %-8d %-8d %-10d\n", rec.date,
-        rec.product_r.code,rec.product_r.name,rec.product_r.sold_quantity,
-        rec.product_r.price, rec.amount);
-}
-void showAllProfit(struct transaction *rec, int quan, char *date){
-    printf("    %s\t%s \t%s    %10s   %s   %s \n","日付", "コード", "商品名", "販売個数", "単価", "集計");
-    printf("---------------------------------\n");
-    int i;
-    for(i=0; i<quan; i++) {
-        if(strcmp(rec[i].date,date)==0){
-            showOneProfit(rec[i]);
-        }
-    }
-    printf("---------------------------------\n");
-}
+// void showOneProfit(struct transaction rec){
+//     printf("%-15s %-10s %-15s %-8d %-8d %-10d %-10d\n", rec.date,
+//         rec.product_r.code,rec.product_r.name,rec.product_r.sold_quantity,
+//         rec.product_r.price, rec.amount, rec.product_r.price*rec.product_r.sold_quantity);
+// }
+// void showAllProfit(struct transaction *rec, int quan){
+//     printf("%s  %s  %s  %s   %s   %s   %s\n","日付", "名簿コード", "商品名", "販売個数", "単価", "売上高", "集計");
+//     printf("---------------------------------\n");
+//     int i;
+//     for(i=0; i<quan; i++) {
+//         showOneProfit(rec[i]);
+//     }
+//     printf("---------------------------------\n");
+// }
 void printCentered(char *text, char *color) {
     int padding = (ARRAY_WIDTH - strlen(text)) /2;
     printf("%*s%s%s%s%*s|", padding,"", color, text, RESET_COLOR, ARRAY_WIDTH - padding -strlen(text), "");
@@ -650,7 +675,6 @@ void decreaseChange(struct change *changeList, int quan, int *backChange){
     for(int j = 0; j < 10000; j++){
         for(int k = 0; k < 1000000/2; k++){}
     }
-    // usleep(30000000); //1s= 1.000.000 ms
 }
 int loadAmount(struct change *ch, int quan){
     int i, sum = 0;
@@ -684,33 +708,46 @@ void writeProductOut(struct product *productList, int quan) {
     }
     fclose(productFileOut);
 }
-int isResetTime(struct tm *lastResetTime){
-    time_t currentTime;
-    time(&currentTime);
-    struct tm *currentTimeInfo = localtime(&currentTime);
-    if(currentTimeInfo->tm_yday > lastResetTime->tm_yday || currentTimeInfo->tm_yday == lastResetTime->tm_yday && currentTimeInfo->tm_hour >= lastResetTime->tm_hour) {
-        return 1;
-    }
-    return 0;
-} 
-void resetSoldForNewDay(struct transaction *transactionList, int quan, struct tm *lastResetTime) {
-    if(isResetTime(lastResetTime)) {
-        for(int i=0; i<quan; i++){
-            transactionList[i].product_r.sold_quantity = 0;
+void writeTransactionOut(struct transaction *transactionList, int quan, char *date, char *code) {
+    FILE *transactionFileOut = fopen("TransactionHistory.csv", "w");
+    int i;
+    for(i=0; i<quan; i++){
+        struct transaction rec = transactionList[i];
+        //
+        if((strcmp(rec.date, date) != 0)){
+            rec.product_r.sold_quantity = 0;
         }
+        if((strcmp(rec.product_r.code, code) == 0)){
+            rec.product_r.sold_quantity++;
+            fseek(transactionFileOut, 0, SEEK_SET);
+            char line[100];
+            int lineNum = 0;
 
-    time_t currentTime;
-    time(&currentTime);
-    *lastResetTime = *localtime(&currentTime);
+            while(fgets(line, sizeof(line), transactionFileOut)){
+                lineNum++;
+                char *p = strtok(line,",");
+                char *storedTransactionDate =p;
+                p = strtok(NULL,",");
+                char *productCode = p;
+
+                if((strcmp(productCode, code) == 0) && (strcmp(storedTransactionDate,date) == 0)) break;
+
+                fseek(transactionFileOut, 0, SEEK_END);
+                long position = ftell(transactionFileOut);
+                fseek(transactionFileOut, position - strlen(line), SEEK_SET);
+                fprintf(transactionFileOut, "%s,%s,%s,%d,%d,%d\n", rec.date,rec.product_r.code,
+                rec.product_r.name,rec.product_r.price,rec.product_r.sold_quantity,rec.amount);
+                fclose(transactionFileOut);
+            }
+        } 
+        else {
+            transactionFileOut = fopen("TransactionHistory.csv", "a");
+            fprintf(transactionFileOut, "%s,%s,%s,%d,%d,%d\n", rec.date,rec.product_r.code,
+            rec.product_r.name,rec.product_r.price,rec.product_r.sold_quantity,rec.amount);
+        }
+        fclose(transactionFileOut);
     }
 }
-// void writeTransactionOut(struct transaction new_t) {
-//     FILE *transactionFileOut = fopen("TransactionHistory.csv", "a");
-//     fprintf(transactionFileOut, "%s,%s,%s,%d,%d,%d\n", new_t.date,
-//     new_t.product_r.code, new_t.product_r.name,new_t.product_r.price,
-//     new_t.product_r.sold_quantity, new_t.product_r.price * new_t.product_r.sold_quantity);
-//     fclose(transactionFileOut);
-// }
 void readTransactionFromFile(struct transaction *transactionList, int *quan){
     FILE *transactionFile = fopen("TransactionHistory.csv", "r");
     int i =0;
@@ -789,58 +826,5 @@ void showErrorMessage(int *errorCode, int product_choice){
     default:
         break;
     }
-}
-void overwriteLine(const char* date, const char* productName, struct transaction new_t) {
-    FILE* file = fopen("TransactionHistory.csv", "r");
-    // if (file == NULL) {
-    //     printf("ファイルを開けない.\n");
-    //     return;
-    // }
-    char newLine[100];
-    sprintf(newLine, "%s,%s,%s,%d,%d,%d\n", new_t.date,
-    new_t.product_r.code, new_t.product_r.name,new_t.product_r.price,
-    new_t.product_r.sold_quantity, new_t.product_r.price * new_t.product_r.sold_quantity);
-    
-    FILE* tempFile = fopen("temp.csv", "w");
-    // if (tempFile == NULL) {
-    //     printf("新規ファイルを作成できない.\n");
-    //     fclose(file);
-    //     return;
-    // }
-
-    char line[100];
-    int isDuplicate = 0;
-
-    // 元のファイルの一行ずつ新規ファイルに書き込む
-    while (fgets(line, sizeof(line), file) != NULL) {
-        char storedDate[20];
-        char storedProductName[50];
-
-        sscanf(line, "%[^,],%[^,]", storedDate, storedProductName);
-
-        // 替えるかどうか確認（一致の場合：元の行を書き替える）
-        if (strcmp(storedDate, date) == 0 && strcmp(storedProductName, productName) == 0) {
-            // 一致すれば、新しい引取の歴史を出力
-            fputs(newLine, tempFile);
-            isDuplicate = 1;
-        } else {
-            // 一致しない：元の歴史（１行）を出力
-            fputs(line, tempFile);
-        }
-    }
-
-    // 日付や商品コードが一致しない場合は新規ファイルの最後に出力
-    if (!isDuplicate) {
-        fputs(newLine, tempFile);
-    }
-
-    fclose(file);
-    fclose(tempFile);
-    remove("TransactionHistory.csv");
-    rename("temp.csv", "TransactionHistory.csv");
-    // printf("条件を一致した行を書き換えました。\n");
-}
-void takeProfit(struct change *ChangList, int quan){
-
 }
 
